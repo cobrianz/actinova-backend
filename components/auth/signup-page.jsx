@@ -86,11 +86,9 @@ export default function SignUpPage({ onSignUp, onSwitchToSignIn }) {
         return;
       }
 
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-      }
-
-      toast.success("Account created successfully! Welcome to Actinova!");
+      toast.success(
+        "Signup request submitted successfully! Awaiting admin approval."
+      );
       router.push("/success");
     } catch (err) {
       toast.error("Network error. Please try again.");
@@ -119,6 +117,9 @@ export default function SignUpPage({ onSignUp, onSwitchToSignIn }) {
             <h1 className="text-2xl font-bold text-white mb-2">
               Actinova Staff Portal
             </h1>
+            <p className="text-white text-sm">
+              Sign up and await admin approval to join our team
+            </p>
           </div>
 
           <div className="p-8">
@@ -335,7 +336,7 @@ export default function SignUpPage({ onSignUp, onSwitchToSignIn }) {
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                   <>
-                    Create Account
+                    Submit Signup Request
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </>
                 )}

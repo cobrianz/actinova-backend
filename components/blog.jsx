@@ -758,7 +758,7 @@ export default function Blog() {
         <div className="text-center text-gray-600 dark:text-gray-400">No posts found</div>
       ) : (
         <>
-          <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6" : "space-y-6"}>
+          <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-6"}>
             {filteredPosts.map((post, index) => (
               <motion.div
                 key={post.id}

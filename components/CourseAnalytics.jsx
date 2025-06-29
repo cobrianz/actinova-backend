@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
   LineChart,
@@ -18,45 +18,66 @@ import {
   AreaChart,
   Area,
 } from "recharts"
-import { ArrowLeft, Users, Clock, Award, Star, BookOpen } from "lucide-react"
-
-const enrollmentData = [
-  { month: "Jan", enrollments: 120, completions: 85 },
-  { month: "Feb", enrollments: 150, completions: 110 },
-  { month: "Mar", enrollments: 180, completions: 125 },
-  { month: "Apr", enrollments: 220, completions: 160 },
-  { month: "May", enrollments: 280, completions: 200 },
-  { month: "Jun", enrollments: 320, completions: 245 },
-]
-
-const performanceData = [
-  { course: "React Basics", completion: 78, rating: 4.8, students: 245 },
-  { course: "Python AI", completion: 65, rating: 4.6, students: 189 },
-  { course: "Data Science", completion: 82, rating: 4.9, students: 156 },
-  { course: "ML Fundamentals", completion: 71, rating: 4.7, students: 134 },
-  { course: "Web Development", completion: 88, rating: 4.5, students: 98 },
-]
-
-const engagementData = [
-  { name: "Video Watched", value: 45, color: "#3B82F6" },
-  { name: "Assignments", value: 25, color: "#10B981" },
-  { name: "Discussions", value: 20, color: "#F59E0B" },
-  { name: "Quizzes", value: 10, color: "#EF4444" },
-]
-
-const progressData = [
-  { week: "Week 1", progress: 15 },
-  { week: "Week 2", progress: 28 },
-  { week: "Week 3", progress: 42 },
-  { week: "Week 4", progress: 58 },
-  { week: "Week 5", progress: 71 },
-  { week: "Week 6", progress: 85 },
-  { week: "Week 7", progress: 92 },
-  { week: "Week 8", progress: 100 },
-]
+import { ArrowLeft, Users, Clock, Award, Star, BookOpen, Download } from "lucide-react"
+import { toast } from "sonner"
+import { Parser } from "json2csv"
 
 export default function CourseAnalytics({ course, onBack }) {
   const [timeRange, setTimeRange] = useState("6months")
+  const [analyticsData, setAnalyticsData] = useState({
+    enrollmentData: [],
+    performanceData: [],
+    engagementData: [],
+    progressData: [],
+    kpiData: { totalStudents: 0, completionRate: 0, avgRating: 0, totalStudyTime: 0 },
+  })
+
+  useEffect(() => {
+    if (course) {
+      fetchAnalytics()
+    }
+  }, [course, timeRange])
+
+  const fetchAnalytics = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`/api/courses/${course._id}/analytics?timeRange=${timeRange}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(await res.json().then(data => data.error || "Failed to fetch analytics"))
+      const data = await res.json()
+      setAnalyticsData(data)
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const downloadAnalyticsCSV = () => {
+    try {
+      const { enrollmentData, performanceData, engagementData, progressData, kpiData } = analyticsData
+      const parser = new Parser()
+      const combinedData = [
+        { section: "KPIs", data: JSON.stringify(kpiData) },
+        ...enrollmentData.map(item => ({ section: "Enrollment", ...item })),
+        ...performanceData.map(item => ({ section: "Performance", ...item })),
+        ...engagementData.map(item => ({ section: "Engagement", ...item })),
+        ...progressData.map(item => ({ section: "Progress", ...item })),
+      ]
+      const csv = parser.parse(combinedData)
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.setAttribute("href", url)
+      link.setAttribute("download", `${course.title}_analytics.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      toast.success("Analytics exported to CSV!")
+    } catch (error) {
+      toast.error("Failed to export CSV")
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -77,25 +98,33 @@ export default function CourseAnalytics({ course, onBack }) {
             </p>
           </div>
         </div>
-        <select
-          value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value)}
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="1month">Last Month</option>
-          <option value="3months">Last 3 Months</option>
-          <option value="6months">Last 6 Months</option>
-          <option value="1year">Last Year</option>
-        </select>
+        <div className="flex items-center space-x-3">
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="1month">Last Month</option>
+            <option value="3months">Last 3 Months</option>
+            <option value="6months">Last 6 Months</option>
+            <option value="1year">Last Year</option>
+          </select>
+          <button
+            onClick={downloadAnalyticsCSV}
+            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export Analytics
+          </button>
+        </div>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { title: "Total Students", value: "1,245", change: "+12%", icon: Users, color: "blue" },
-          { title: "Completion Rate", value: "78%", change: "+5%", icon: Award, color: "green" },
-          { title: "Avg. Rating", value: "4.8", change: "+0.2", icon: Star, color: "yellow" },
-          { title: "Study Time", value: "24h", change: "+3h", icon: Clock, color: "purple" },
+          { title: "Total Students", value: analyticsData.kpiData.totalStudents, change: "+12%", icon: Users, color: "blue" },
+          { title: "Completion Rate", value: `${analyticsData.kpiData.completionRate}%`, change: "+5%", icon: Award, color: "green" },
+          { title: "Avg. Rating", value: analyticsData.kpiData.avgRating, change: "+0.2", icon: Star, color: "yellow" },
+          { title: "Study Time", value: `${analyticsData.kpiData.totalStudyTime}h`, change: "+3h", icon: Clock, color: "purple" },
         ].map((kpi, index) => {
           const Icon = kpi.icon
           return (
@@ -124,7 +153,6 @@ export default function CourseAnalytics({ course, onBack }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Enrollment Trends */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -132,7 +160,7 @@ export default function CourseAnalytics({ course, onBack }) {
         >
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Enrollment & Completion Trends</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={enrollmentData}>
+            <AreaChart data={analyticsData.enrollmentData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
@@ -157,7 +185,6 @@ export default function CourseAnalytics({ course, onBack }) {
           </ResponsiveContainer>
         </motion.div>
 
-        {/* Course Performance */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -165,7 +192,7 @@ export default function CourseAnalytics({ course, onBack }) {
         >
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Course Performance</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={performanceData}>
+            <BarChart data={analyticsData.performanceData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="course" />
               <YAxis />
@@ -177,7 +204,6 @@ export default function CourseAnalytics({ course, onBack }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Student Engagement */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -187,14 +213,14 @@ export default function CourseAnalytics({ course, onBack }) {
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={engagementData}
+                data={analyticsData.engagementData}
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
                 dataKey="value"
                 label={({ name, value }) => `${name}: ${value}%`}
               >
-                {engagementData.map((entry, index) => (
+                {analyticsData.engagementData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
@@ -203,7 +229,6 @@ export default function CourseAnalytics({ course, onBack }) {
           </ResponsiveContainer>
         </motion.div>
 
-        {/* Progress Over Time */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -211,7 +236,7 @@ export default function CourseAnalytics({ course, onBack }) {
         >
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Average Progress Over Time</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={progressData}>
+            <LineChart data={analyticsData.progressData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="week" />
               <YAxis />
@@ -222,7 +247,6 @@ export default function CourseAnalytics({ course, onBack }) {
         </motion.div>
       </div>
 
-      {/* Detailed Performance Table */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -253,7 +277,7 @@ export default function CourseAnalytics({ course, onBack }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {performanceData.map((course, index) => (
+              {analyticsData.performanceData.map((course, index) => (
                 <tr key={course.course} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">

@@ -65,14 +65,35 @@ export default function Users({ session }) {
         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesRole = filterRole === "all" || user.role === filterRole;
-      const matchesStatus = filterStatus === "all" || user.status.toLowerCase() === filterStatus.toLowerCase();
-      const matchesPlan = filterPlan === "all" || user.plan?.toLowerCase() === filterPlan.toLowerCase() || (filterPlan === "N/A" && user.type === "staff");
-      const matchesJoinDate = !filterJoinDate || new Date(user.joinDate).toISOString().startsWith(filterJoinDate);
-      return matchesSearch && matchesRole && matchesStatus && matchesPlan && matchesJoinDate;
+      const matchesStatus =
+        filterStatus === "all" ||
+        user.status.toLowerCase() === filterStatus.toLowerCase();
+      const matchesPlan =
+        filterPlan === "all" ||
+        user.plan?.toLowerCase() === filterPlan.toLowerCase() ||
+        (filterPlan === "N/A" && user.type === "staff");
+      const matchesJoinDate =
+        !filterJoinDate ||
+        new Date(user.joinDate).toISOString().startsWith(filterJoinDate);
+      return (
+        matchesSearch &&
+        matchesRole &&
+        matchesStatus &&
+        matchesPlan &&
+        matchesJoinDate
+      );
     });
     setFilteredUsers(filtered);
     setCurrentPage(1);
-  }, [users, searchTerm, filterRole, filterStatus, filterPlan, filterJoinDate, session]);
+  }, [
+    users,
+    searchTerm,
+    filterRole,
+    filterStatus,
+    filterPlan,
+    filterJoinDate,
+    session,
+  ]);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -121,6 +142,7 @@ export default function Users({ session }) {
   };
 
   const handleApprove = async (requestId) => {
+    console.log("Approving request with ID:", requestId); // Debug log
     const token = localStorage.getItem("token");
     if (!token) {
       toast.error("No authentication token found. Please sign in.");
@@ -137,7 +159,7 @@ export default function Users({ session }) {
         throw new Error(data.message || "Failed to approve request");
       }
       setUsers((prev) => [data.user, ...prev]);
-      setPendingRequests((prev) => prev.filter((req) => req._id !== requestId));
+      setPendingRequests((prev) => prev.filter((req) => req.id !== requestId));
       toast.success("Request approved successfully!");
     } catch (err) {
       toast.error(err.message);
@@ -145,6 +167,7 @@ export default function Users({ session }) {
   };
 
   const handleReject = async (requestId) => {
+    console.log("Rejecting request with ID:", requestId); // Debug log
     const token = localStorage.getItem("token");
     if (!token) {
       toast.error("No authentication token found. Please sign in.");
@@ -160,7 +183,7 @@ export default function Users({ session }) {
       if (!res.ok) {
         throw new Error(data.message || "Failed to reject request");
       }
-      setPendingRequests((prev) => prev.filter((req) => req._id !== requestId));
+      setPendingRequests((prev) => prev.filter((req) => req.id !== requestId));
       toast.success("Request rejected");
     } catch (err) {
       toast.error(err.message);
@@ -175,7 +198,10 @@ export default function Users({ session }) {
     }
 
     try {
-      const endpoint = action === "suspend" ? `/api/users/${userId}/suspend` : `/api/users/${userId}/activate`;
+      const endpoint =
+        action === "suspend"
+          ? `/api/users/${userId}/suspend`
+          : `/api/users/${userId}/activate`;
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -186,10 +212,14 @@ export default function Users({ session }) {
       }
       setUsers((prev) =>
         prev.map((user) =>
-          user.id === userId ? { ...user, status: action === "suspend" ? "suspended" : "active" } : user
+          user.id === userId
+            ? { ...user, status: action === "suspend" ? "suspended" : "active" }
+            : user
         )
       );
-      toast.success(`User ${action === "suspend" ? "suspended" : "activated"} successfully`);
+      toast.success(
+        `User ${action === "suspend" ? "suspended" : "activated"} successfully`
+      );
     } catch (err) {
       toast.error(err.message);
     }
@@ -221,7 +251,9 @@ export default function Users({ session }) {
         throw new Error(data.message || "Failed to promote user");
       }
       setUsers((prev) =>
-        prev.map((user) => (user.id === userId ? { ...user, role: newRole } : user))
+        prev.map((user) =>
+          user.id === userId ? { ...user, role: newRole } : user
+        )
       );
       toast.success(`User promoted to ${getRoleLabel(newRole)}`);
     } catch (err) {
@@ -263,7 +295,10 @@ export default function Users({ session }) {
     }
 
     try {
-      const exportedBy = { name: session?.name || "Unknown", email: session?.email || "unknown@example.com" };
+      const exportedBy = {
+        name: session?.name || "Unknown",
+        email: session?.email || "unknown@example.com",
+      };
       const filter = exportType === "all" ? {} : { type: exportType };
       if (exportFormat === "csv") {
         const res = await fetch("/api/users/export", {
@@ -282,14 +317,16 @@ export default function Users({ session }) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `users_${exportType}_${new Date().toISOString().split("T")[0]}.csv`;
+        a.download = `users_${exportType}_${
+          new Date().toISOString().split("T")[0]
+        }.csv`;
         a.click();
         window.URL.revokeObjectURL(url);
         toast.success("Users exported as CSV successfully");
       } else if (exportFormat === "pdf") {
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
+        const pageHeight = doc.internal.pageSize.getWidth();
         const margin = 10;
         const footerHeight = 20;
 
@@ -297,16 +334,26 @@ export default function Users({ session }) {
         doc.setFont("helvetica", "bold");
         doc.text(" ACTINOVA AI TUTOR", pageWidth / 2, 20, { align: "center" });
         doc.setFontSize(14);
-        doc.text(" Actinova  ai tutor - User Report", pageWidth / 2, 30, { align: "center" });
+        doc.text(" Actinova  ai tutor - User Report", pageWidth / 2, 30, {
+          align: "center",
+        });
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
-        doc.text(`Exported on: ${new Date().toLocaleString()}`, pageWidth / 2, 40, { align: "center" });
+        doc.text(
+          `Exported on: ${new Date().toLocaleString()}`,
+          pageWidth / 2,
+          40,
+          { align: "center" }
+        );
 
         autoTable(doc, {
           startY: 50,
           head: [["Name", "Email", "Role", "Plan", "Last Login", "Status"]],
           body: users
-            .filter((user) => Object.keys(filter).length === 0 || user.type === filter.type)
+            .filter(
+              (user) =>
+                Object.keys(filter).length === 0 || user.type === filter.type
+            )
             .map((user) => [
               user.name,
               user.email,
@@ -322,12 +369,23 @@ export default function Users({ session }) {
           didDrawPage: (data) => {
             doc.setFontSize(8);
             doc.setTextColor(100);
-            doc.text(`Exported by: ${exportedBy.name} (${exportedBy.email})`, margin, pageHeight - 10);
-            doc.text(`Page ${data.pageNumber}`, pageWidth - margin, pageHeight - 10, { align: "right" });
+            doc.text(
+              `Exported by: ${exportedBy.name} (${exportedBy.email})`,
+              margin,
+              pageHeight - 10
+            );
+            doc.text(
+              `Page ${data.pageNumber}`,
+              pageWidth - margin,
+              pageHeight - 10,
+              { align: "right" }
+            );
           },
         });
 
-        doc.save(`users_${exportType}_${new Date().toISOString().split("T")[0]}.pdf`);
+        doc.save(
+          `users_${exportType}_${new Date().toISOString().split("T")[0]}.pdf`
+        );
         toast.success("Users exported as PDF successfully");
       }
     } catch (err) {
@@ -336,56 +394,88 @@ export default function Users({ session }) {
   };
 
   const getStatusColor = (status) => {
-    return status.toLowerCase() === "active" ? "text-green-600 bg-green-100" : "text-red-600 bg-red-100";
+    return status.toLowerCase() === "active"
+      ? "text-green-600 bg-green-100"
+      : "text-red-600 bg-red-100";
   };
 
   const getRoleColor = (role) => {
     switch (role) {
-      case "admin": return "text-red-600 bg-red-100";
-      case "writer": return "text-purple-600 bg-purple-100";
-      case "instructor": return "text-blue-600 bg-blue-100";
-      case "moderator": return "text-indigo-600 bg-indigo-100";
-      case "analyst": return "text-yellow-600 bg-yellow-100";
-      case "support": return "text-teal-600 bg-teal-100";
-      case "student": return "text-gray-600 bg-gray-100";
-      default: return "text-gray-600 bg-gray-100";
+      case "admin":
+        return "text-red-600 bg-red-100";
+      case "writer":
+        return "text-purple-600 bg-purple-100";
+      case "instructor":
+        return "text-blue-600 bg-blue-100";
+      case "moderator":
+        return "text-indigo-600 bg-indigo-100";
+      case "analyst":
+        return "text-yellow-600 bg-yellow-100";
+      case "support":
+        return "text-teal-600 bg-teal-100";
+      case "student":
+        return "text-gray-600 bg-gray-100";
+      default:
+        return "text-gray-600 bg-gray-100";
     }
   };
 
   const getRoleLabel = (role) => {
     switch (role) {
-      case "writer": return "Content Writer";
-      case "instructor": return "Course Instructor";
-      case "moderator": return "Community Moderator";
-      case "analyst": return "Data Analyst";
-      case "support": return "Support Agent";
-      case "admin": return "Admin";
-      case "student": return "Student";
-      default: return role;
+      case "writer":
+        return "Content Writer";
+      case "instructor":
+        return "Course Instructor";
+      case "moderator":
+        return "Community Moderator";
+      case "analyst":
+        return "Data Analyst";
+      case "support":
+        return "Support Agent";
+      case "admin":
+        return "Admin";
+      case "student":
+        return "Student";
+      default:
+        return role;
     }
   };
 
   const getRequestTypeLabel = (type) => {
     switch (type) {
-      case "content_writer": return "Content Writer";
-      case "course_instructor": return "Course Instructor";
-      case "community_moderator": return "Community Moderator";
-      case "data_analyst": return "Data Analyst";
-      case "support_agent": return "Support Agent";
-      case "admin": return "Admin";
-      default: return type;
+      case "content_writer":
+        return "Content Writer";
+      case "course_instructor":
+        return "Course Instructor";
+      case "community_moderator":
+        return "Community Moderator";
+      case "data_analyst":
+        return "Data Analyst";
+      case "support_agent":
+        return "Support Agent";
+      case "admin":
+        return "Admin";
+      default:
+        return type;
     }
   };
 
   const totalPages = Math.ceil(filteredUsers.length / rowsPerPage);
-  const paginatedUsers = filteredUsers.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Users Management</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Manage all users, internal staff, and approvals</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Users Management
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Manage all users, internal staff, and approvals
+          </p>
         </div>
         <div className="flex items-center space-x-3">
           {pendingRequests.length > 0 && (
@@ -447,7 +537,9 @@ export default function Users({ session }) {
                 <AlertTriangle className="w-6 h-6" />
                 <div>
                   <h3 className="text-lg font-bold">Pending Approvals</h3>
-                  <p className="text-orange-100 text-sm">{pendingRequests.length} requests awaiting review</p>
+                  <p className="text-orange-100 text-sm">
+                    {pendingRequests.length} requests awaiting review
+                  </p>
                 </div>
               </div>
               <button
@@ -462,14 +554,18 @@ export default function Users({ session }) {
             {pendingRequests.length === 0 ? (
               <div className="text-center py-8">
                 <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Pending Requests</h4>
-                <p className="text-gray-600 dark:text-gray-400">All requests have been processed.</p>
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  No Pending Requests
+                </h4>
+                <p className="text-gray-600 dark:text-gray-400">
+                  All requests have been processed.
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
                 {pendingRequests.map((request, index) => (
                   <motion.div
-                    key={request._id}
+                    key={request.id} // Changed from request._id to request.id
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
@@ -482,8 +578,14 @@ export default function Users({ session }) {
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-3">
-                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">{request.name}</h4>
-                            <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getRoleColor(request.type)}`}>
+                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                              {request.name}
+                            </h4>
+                            <span
+                              className={`px-3 py-1 text-xs font-semibold rounded-full ${getRoleColor(
+                                request.type
+                              )}`}
+                            >
                               {getRequestTypeLabel(request.type)}
                             </span>
                           </div>
@@ -495,7 +597,12 @@ export default function Users({ session }) {
                               </div>
                               <div className="flex items-center space-x-2">
                                 <Calendar className="w-4 h-4" />
-                                <span>Requested on {new Date(request.requestDate).toLocaleDateString()}</span>
+                                <span>
+                                  Requested on{" "}
+                                  {new Date(
+                                    request.requestDate
+                                  ).toLocaleDateString()}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -504,30 +611,38 @@ export default function Users({ session }) {
                               <div className="flex items-start space-x-2">
                                 <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
-                                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">Message:</p>
-                                  <p className="text-sm text-gray-600 dark:text-gray-300">{request.message}</p>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                                    Message:
+                                  </p>
+                                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                                    {request.message}
+                                  </p>
                                 </div>
                               </div>
                             </div>
                           )}
                           {request.experience && (
                             <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                              <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">Experience:</p>
-                              <p className="text-sm text-gray-600 dark:text-gray-300">{request.experience}</p>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                                Experience:
+                              </p>
+                              <p className="text-sm text-gray-600 dark:text-gray-300">
+                                {request.experience}
+                              </p>
                             </div>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center space-x-2 ml-4">
                         <button
-                          onClick={() => handleApprove(request._id)}
+                          onClick={() => handleApprove(request.id)} // Changed from request._id to request.id
                           className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                         >
                           <Check className="w-4 h-4 mr-2" />
                           Approve
                         </button>
                         <button
-                          onClick={() => handleReject(request._id)}
+                          onClick={() => handleReject(request.id)} // Changed from request._id to request.id
                           className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                         >
                           <X className="w-4 h-4 mr-2" />
@@ -543,27 +658,27 @@ export default function Users({ session }) {
         </motion.div>
       )}
 
-{showAddUser && (
-    <AddUser
-      onSave={() => {
-        setShowAddUser(false);
-        fetchUsers();
-        fetchPendingRequests();
-      }}
-      onCancel={() => setShowAddUser(false)}
-    />
-  )}
-  {showEditUser && (
-    <AddUser
-      userToEdit={showEditUser}
-      onSave={() => {
-        setShowEditUser(null);
-        fetchUsers();
-        fetchPendingRequests();
-      }}
-      onCancel={() => setShowEditUser(null)}
-    />
-  )}
+      {showAddUser && (
+        <AddUser
+          onSave={() => {
+            setShowAddUser(false);
+            fetchUsers();
+            fetchPendingRequests();
+          }}
+          onCancel={() => setShowAddUser(false)}
+        />
+      )}
+      {showEditUser && (
+        <AddUser
+          userToEdit={showEditUser}
+          onSave={() => {
+            setShowEditUser(null);
+            fetchUsers();
+            fetchPendingRequests();
+          }}
+          onCancel={() => setShowEditUser(null)}
+        />
+      )}
       {showPromoteModal && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -574,7 +689,9 @@ export default function Users({ session }) {
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
               Promote {showPromoteModal.name}
             </h2>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select New Role</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Select New Role
+            </label>
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
@@ -596,7 +713,12 @@ export default function Users({ session }) {
                 Cancel
               </button>
               <button
-                onClick={() => setShowConfirmModal({ type: "promote", userId: showPromoteModal.id })}
+                onClick={() =>
+                  setShowConfirmModal({
+                    type: "promote",
+                    userId: showPromoteModal.id,
+                  })
+                }
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 disabled={!newRole}
               >
@@ -614,11 +736,19 @@ export default function Users({ session }) {
         >
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-sm text-center">
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
-              Confirm {showConfirmModal.type === "suspend" ? "Suspension" : showConfirmModal.type === "activate" ? "Activation" : showConfirmModal.type === "delete" ? "Deletion" : "Promotion"}
+              Confirm{" "}
+              {showConfirmModal.type === "suspend"
+                ? "Suspension"
+                : showConfirmModal.type === "activate"
+                ? "Activation"
+                : showConfirmModal.type === "delete"
+                ? "Deletion"
+                : "Promotion"}
             </h2>
             <p className="text-gray-600 dark:text-gray-300 mb-6">
               Are you sure you want to {showConfirmModal.type} this user?
-              {showConfirmModal.type === "promote" && ` Role will be changed to ${getRoleLabel(newRole)}.`}
+              {showConfirmModal.type === "promote" &&
+                ` Role will be changed to ${getRoleLabel(newRole)}.`}
             </p>
             <div className="flex justify-center gap-4">
               <button
@@ -633,7 +763,10 @@ export default function Users({ session }) {
                     ? handlePromote(showConfirmModal.userId)
                     : showConfirmModal.type === "delete"
                     ? handleDelete(showConfirmModal.userId)
-                    : handleSuspendOrActivate(showConfirmModal.userId, showConfirmModal.type)
+                    : handleSuspendOrActivate(
+                        showConfirmModal.userId,
+                        showConfirmModal.type
+                      )
                 }
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
@@ -753,7 +886,9 @@ export default function Users({ session }) {
                               </span>
                             </div>
                             <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
+                              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                {user.name}
+                              </div>
                               <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
                                 <Mail className="w-3 h-3 mr-1" />
                                 {user.email}
@@ -762,12 +897,18 @@ export default function Users({ session }) {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(user.role)}`}>
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(
+                              user.role
+                            )}`}
+                          >
                             {getRoleLabel(user.role)}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900 dark:text-white">{user.plan || "N/A"}</span>
+                          <span className="text-sm text-gray-900 dark:text-white">
+                            {user.plan || "N/A"}
+                          </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm text-gray-900 dark:text-white">
@@ -775,7 +916,11 @@ export default function Users({ session }) {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(user.status)}`}>
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
+                              user.status
+                            )}`}
+                          >
                             {user.status}
                           </span>
                         </td>
@@ -798,29 +943,46 @@ export default function Users({ session }) {
                             </button>
                             {user.status.toLowerCase() === "active" ? (
                               <button
-                                onClick={() => setShowConfirmModal({ type: "suspend", userId: user.id })}
+                                onClick={() =>
+                                  setShowConfirmModal({
+                                    type: "suspend",
+                                    userId: user.id,
+                                  })
+                                }
                                 className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
                               >
                                 <UserX className="w-4 h-4" />
                               </button>
                             ) : (
                               <button
-                                onClick={() => setShowConfirmModal({ type: "activate", userId: user.id })}
+                                onClick={() =>
+                                  setShowConfirmModal({
+                                    type: "activate",
+                                    userId: user.id,
+                                  })
+                                }
                                 className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50 transition-colors"
                               >
                                 <UserCheck className="w-4 h-4" />
                               </button>
                             )}
-                            {user.type === "staff" && user.role !== "admin" && user.approved && (
-                              <button
-                                onClick={() => setShowPromoteModal(user)}
-                                className="text-purple-600 hover:text-purple-900 p-1 rounded hover:bg-purple-50 transition-colors"
-                              >
-                                <Shield className="w-4 h-4" />
-                              </button>
-                            )}
+                            {user.type === "staff" &&
+                              user.role !== "admin" &&
+                              user.approved && (
+                                <button
+                                  onClick={() => setShowPromoteModal(user)}
+                                  className="text-purple-600 hover:text-purple-900 p-1 rounded hover:bg-purple-50 transition-colors"
+                                >
+                                  <Shield className="w-4 h-4" />
+                                </button>
+                              )}
                             <button
-                              onClick={() => setShowConfirmModal({ type: "delete", userId: user.id })}
+                              onClick={() =>
+                                setShowConfirmModal({
+                                  type: "delete",
+                                  userId: user.id,
+                                })
+                              }
                               className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -836,11 +998,14 @@ export default function Users({ session }) {
                 <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     Showing {(currentPage - 1) * rowsPerPage + 1} to{" "}
-                    {Math.min(currentPage * rowsPerPage, filteredUsers.length)} of {filteredUsers.length} users
+                    {Math.min(currentPage * rowsPerPage, filteredUsers.length)}{" "}
+                    of {filteredUsers.length} users
                   </div>
                   <div className="flex items-center space-x-2">
                     <button
-                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                      onClick={() =>
+                        setCurrentPage((prev) => Math.max(prev - 1, 1))
+                      }
                       disabled={currentPage === 1}
                       className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -850,7 +1015,9 @@ export default function Users({ session }) {
                       Page {currentPage} of {totalPages}
                     </span>
                     <button
-                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                      onClick={() =>
+                        setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                      }
                       disabled={currentPage === totalPages}
                       className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -863,12 +1030,21 @@ export default function Users({ session }) {
           )}
         </div>
       )}
-      {filteredUsers.length === 0 && !showAddUser && !showEditUser && !isLoading && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">No users found matching your criteria.</p>
-        </div>
-      )}
-      <UserProfileModal user={selectedUser} isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
+      {filteredUsers.length === 0 &&
+        !showAddUser &&
+        !showEditUser &&
+        !isLoading && (
+          <div className="text-center py-12">
+            <p className="text-gray-500 dark:text-gray-400">
+              No users found matching your criteria.
+            </p>
+          </div>
+        )}
+      <UserProfileModal
+        user={selectedUser}
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+      />
     </div>
   );
 }
