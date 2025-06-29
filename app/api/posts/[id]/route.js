@@ -34,10 +34,10 @@ export async function PUT(req, { params }) {
     }
 
     const body = await req.json();
-    const { title, slug, description, content, keywords, category, publishDate, status, featuredImage, views, likes, comments } = body;
+    const { title, slug, description, content, keywords, category, readTime, status, featuredImage, views, likes, comments, isFeatured, createdAt } = body;
 
-    if (!title || !description || !content) {
-      return NextResponse.json({ message: "Title, description, and content are required" }, { status: 400 });
+    if (!title || !description || !content || !readTime) {
+      return NextResponse.json({ message: "Title, description, content, and read time are required" }, { status: 400 });
     }
 
     if (featuredImage && !/^https?:\/\/[^\s/$.?#].[^\s]*$/.test(featuredImage)) {
@@ -49,21 +49,34 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ message: "Slug already exists" }, { status: 400 });
     }
 
+    // If setting as featured, unfeature existing featured post
+    if (isFeatured) {
+      await db.collection("posts").updateMany(
+        { isFeatured: true },
+        { $set: { isFeatured: false } }
+      );
+    }
+
+    const today = new Date().toISOString().split("T")[0];
     const updateFields = {
       title,
       slug,
       status,
-      publishDate: publishDate || null,
+      publishDate: status === "published" ? today : null,
+      createdAt,
+      updatedAt: today,
       description,
       keywords: keywords || "",
       content,
       featuredImage: featuredImage || null,
       category: category || "Technology",
-      readTime: "5 min read",
+      readTime,
       views: parseInt(views) || 0,
       likes: parseInt(likes) || 0,
       comments: parseInt(comments) || 0,
-      updatedAt: new Date(),
+      isFeatured: isFeatured || false,
+      author: user.name,
+      authorId: decoded.userId,
     };
 
     const result = await db.collection("posts").updateOne(
@@ -82,6 +95,7 @@ export async function PUT(req, { params }) {
         ...updateFields,
         featuredImage: updateFields.featuredImage || "/placeholder.svg?height=200&width=400",
         author: user.name,
+        authorId: user._id.toString(),
       },
     }, { status: 200 });
   } catch (error) {

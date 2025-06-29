@@ -71,6 +71,8 @@ export async function GET(req) {
           slug: post.slug,
           status: post.status || "Draft",
           publishDate: post.publishDate,
+          createdAt: post.createdAt,
+          updatedAt: post.updatedAt,
           views: post.views || 0,
           likes: post.likes || 0,
           comments: post.comments || 0,
@@ -81,7 +83,9 @@ export async function GET(req) {
             post.featuredImage || "/placeholder.svg?height=200&width=400",
           category: post.category,
           readTime: post.readTime || "5 min read",
-          author: user.name,
+          author: post.author,
+          authorId: post.authorId,
+          isFeatured: post.isFeatured || false,
         })),
         pagination: {
           currentPage: page,
@@ -144,14 +148,15 @@ export async function POST(req) {
       content,
       keywords,
       category,
-      publishDate,
+      readTime,
       status,
       featuredImage,
+      isFeatured,
     } = body;
 
-    if (!title || !description || !content) {
+    if (!title || !description || !content || !readTime) {
       return NextResponse.json(
-        { message: "Title, description, and content are required" },
+        { message: "Title, description, content, and read time are required" },
         { status: 400 }
       );
     }
@@ -174,11 +179,22 @@ export async function POST(req) {
       );
     }
 
+    // If setting as featured, unfeature existing featured post
+    if (isFeatured) {
+      await db.collection("posts").updateMany(
+        { isFeatured: true },
+        { $set: { isFeatured: false } }
+      );
+    }
+
+    const today = new Date().toISOString().split("T")[0];
     const post = {
       title,
       slug,
       status: status || "Draft",
-      publishDate: publishDate || null,
+      publishDate: status === "published" ? today : null,
+      createdAt: today,
+      updatedAt: today,
       views: 0,
       likes: 0,
       comments: 0,
@@ -187,10 +203,11 @@ export async function POST(req) {
       content,
       featuredImage: featuredImage || null,
       category: category || "Technology",
-      readTime: "5 min read",
+      readTime,
       createdBy: new ObjectId(decoded.userId),
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      author: user.name,
+      authorId: decoded.userId,
+      isFeatured: isFeatured || false,
     };
 
     const result = await db.collection("posts").insertOne(post);
@@ -204,6 +221,7 @@ export async function POST(req) {
           featuredImage:
             post.featuredImage || "/placeholder.svg?height=200&width=400",
           author: user.name,
+          authorId: user._id.toString(),
         },
       },
       { status: 201 }

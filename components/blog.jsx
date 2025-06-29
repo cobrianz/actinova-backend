@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Plus, Edit, Eye, Trash2, Search, Save, X, ChevronLeft, ChevronRight, Download } from "lucide-react"
+import { Plus, Edit, Eye, Trash2, Search, Save, X, ChevronLeft, ChevronRight, Star, Send } from "lucide-react"
 import { toast } from "sonner"
-import { jsPDF } from "jspdf"
+import ReactMarkdown from "react-markdown"
 
 export default function Blog() {
   const [posts, setPosts] = useState([])
@@ -22,7 +22,9 @@ export default function Blog() {
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showFeatureModal, setShowFeatureModal] = useState(false)
   const [postToDelete, setPostToDelete] = useState(null)
+  const [postToFeature, setPostToFeature] = useState(null)
   const modalRef = useRef(null)
 
   const [editForm, setEditForm] = useState({
@@ -32,9 +34,10 @@ export default function Blog() {
     content: "",
     tags: "",
     category: "Technology",
-    publishDate: "",
+    readTime: "5 min read",
     status: "draft",
     featuredImage: "",
+    isFeatured: false,
   })
 
   // Handle click outside modal to close
@@ -42,14 +45,18 @@ export default function Blog() {
     const handleClickOutside = (event) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
         setShowDeleteModal(false)
+        setShowFeatureModal(false)
         setPostToDelete(null)
+        setPostToFeature(null)
       }
     }
 
     const handleEscapeKey = (event) => {
       if (event.key === "Escape") {
         setShowDeleteModal(false)
+        setShowFeatureModal(false)
         setPostToDelete(null)
+        setPostToFeature(null)
       }
     }
 
@@ -132,9 +139,10 @@ export default function Blog() {
       content: "",
       tags: "",
       category: "Technology",
-      publishDate: "",
+      readTime: "5 min read",
       status: "draft",
       featuredImage: "",
+      isFeatured: false,
     })
     setIsCreating(true)
     setIsEditing(false)
@@ -150,9 +158,10 @@ export default function Blog() {
       content: post.content,
       tags: post.keywords,
       category: post.category,
-      publishDate: post.publishDate || "",
+      readTime: post.readTime,
       status: post.status?.toLowerCase() || "draft",
       featuredImage: post.featuredImage || "",
+      isFeatured: post.isFeatured || false,
     })
     setSelectedPost(post)
     setIsEditing(true)
@@ -173,6 +182,7 @@ export default function Blog() {
     if (!editForm.title.trim()) newErrors.title = "Title is required"
     if (!editForm.description.trim()) newErrors.description = "Description is required"
     if (!editForm.content.trim()) newErrors.content = "Content is required"
+    if (!editForm.readTime.trim()) newErrors.readTime = "Read time is required"
     if (editForm.featuredImage && !/^https?:\/\/[^\s/$.?#].[^\s]*$/.test(editForm.featuredImage)) {
       newErrors.featuredImage = "Invalid image URL"
     }
@@ -187,6 +197,7 @@ export default function Blog() {
       const token = localStorage.getItem("token")
       if (!token) throw new Error("No authentication token provided")
 
+      const today = new Date().toISOString().split("T")[0]
       const body = {
         title: editForm.title,
         slug: editForm.slug,
@@ -194,12 +205,16 @@ export default function Blog() {
         content: editForm.content,
         keywords: editForm.tags,
         category: editForm.category,
-        publishDate: editForm.publishDate,
+        readTime: editForm.readTime,
         status: editForm.status,
         featuredImage: editForm.featuredImage || null,
+        isFeatured: editForm.isFeatured,
         views: isEditing ? selectedPost.views : 0,
         likes: isEditing ? selectedPost.likes : 0,
         comments: isEditing ? selectedPost.comments : 0,
+        createdAt: isCreating ? today : selectedPost?.createdAt,
+        updatedAt: today,
+        publishDate: editForm.status === "published" ? today : null,
       }
 
       const res = await fetch("/api/posts" + (isEditing ? `/${selectedPost.id}` : ""), {
@@ -277,10 +292,12 @@ export default function Blog() {
       const token = localStorage.getItem("token")
       if (!token) throw new Error("No authentication token provided")
 
+      const today = new Date().toISOString().split("T")[0]
       const body = {
         ...post,
         status: "Published",
-        publishDate: new Date().toISOString().split("T")[0],
+        publishDate: today,
+        updatedAt: today,
       }
 
       const res = await fetch(`/api/posts/${post.id}`, {
@@ -309,62 +326,53 @@ export default function Blog() {
     }
   }
 
-  const handleExportPDF = (post) => {
+  const handleFeaturePrompt = (post) => {
+    if (post.isFeatured) {
+      handleFeatureToggle(post)
+    } else {
+      setPostToFeature(post)
+      setShowFeatureModal(true)
+    }
+  }
+
+  const handleFeatureToggle = async (post) => {
     try {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 20;
-      const maxWidth = pageWidth - 2 * margin;
-      let y = margin;
+      const token = localStorage.getItem("token")
+      if (!token) throw new Error("No authentication token provided")
 
-      // Title
-      doc.setFontSize(24);
-      doc.setFont("helvetica", "bold");
-      doc.text(post.title, margin, y, { maxWidth });
-      y += 15;
+      const body = {
+        ...post,
+        isFeatured: !post.isFeatured,
+        updatedAt: new Date().toISOString().split("T")[0],
+      }
 
-      // Description
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "bold");
-      doc.text("Description", margin, y);
-      y += 8;
-      doc.setFontSize(12);
-      const descriptionLines = doc.splitTextToSize(post.description, maxWidth);
-      doc.text(descriptionLines, margin, y);
-      y += descriptionLines.length * 7 + 10;
+      const res = await fetch(`/api/posts/${post.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      })
 
-      // Content
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "normal");
-      doc.text("Content", margin, y);
-      y += 8;
-      doc.setFontSize(12);
-      const contentLines = doc.splitTextToSize(post.content, maxWidth);
-      doc.text(contentLines, margin, y);
-      y += contentLines.length * 7 + 10;
+      const text = await res.text()
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error("Server returned invalid JSON")
+      }
+      if (!res.ok) throw new Error(data.message || "Failed to toggle feature status")
 
-      // Details
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "normal");
-      doc.text("Details", margin, y);
-      y += 8;
-      doc.setFontSize(12);
-      doc.text(`Author: ${post.author}`, margin, y);
-      y += 7;
-      doc.text(`Category: ${post.category}`, margin, y);
-      y += 7;
-      doc.text(`Status: ${post.status || "Draft"}`, margin, y);
-      y += 7;
-      doc.text(`Publish Date: ${post.publishDate || "Not published"}`, margin, y);
-      y += 7;
-      doc.text(`Read Time: ${post.readTime || "5 min read"}`, margin, y);
-      y += 7;
-      doc.text(`Views: ${post.views || 0}`, margin, y);
-
-      doc.save(`${post.slug || "post"}.pdf`);
-      toast.success("PDF downloaded successfully!");
+      setPosts(posts.map((p) => (p.id === post.id ? data.post : (post.isFeatured ? {...p, isFeatured: false} : p))))
+      setFilteredPosts(filteredPosts.map((p) => (p.id === post.id ? data.post : (post.isFeatured ? {...p, isFeatured: false} : p))))
+      toast.success(`Post ${post.isFeatured ? "unfeatured" : "featured"} successfully!`)
+      setShowFeatureModal(false)
+      setPostToFeature(null)
     } catch (error) {
-      toast.error(`Failed to generate PDF: ${error.message}`);
+      toast.error(error.message)
+      setShowFeatureModal(false)
+      setPostToFeature(null)
     }
   }
 
@@ -507,15 +515,17 @@ export default function Blog() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Publish Date
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Read Time *</label>
                   <input
-                    type="date"
-                    value={editForm.publishDate}
-                    onChange={(e) => handleInputChange("publishDate", e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    type="text"
+                    value={editForm.readTime}
+                    onChange={(e) => handleInputChange("readTime", e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                      errors.readTime ? "border-red-500" : "border-gray-300 dark:border-gray-600"
+                    }`}
+                    placeholder="5 min read"
                   />
+                  {errors.readTime && <p className="text-red-500 text-sm mt-1">{errors.readTime}</p>}
                 </div>
               </div>
 
@@ -529,10 +539,27 @@ export default function Blog() {
                   placeholder="tag1, tag2, tag3..."
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Featured Post
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={editForm.isFeatured}
+                    onChange={(e) => handleInputChange("isFeatured", e.target.checked)}
+                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-gray-600 rounded"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Set as featured post (only one post can be featured at a time)
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Content *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Content * (Use Markdown for formatting)</label>
               <textarea
                 value={editForm.content}
                 onChange={(e) => handleInputChange("content", e.target.value)}
@@ -540,9 +567,12 @@ export default function Blog() {
                 className={`w-full px-4 py-3 border rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 ${
                   errors.content ? "border-red-500" : "border-gray-300 dark:border-gray-600"
                 }`}
-                placeholder="Write your content here..."
+                placeholder={`Write your content here using Markdown...\n\n# Main Heading\n## Subheading\n**Bold Title** or *Italic Text*\n- List item 1\n- List item 2`}
               />
               {errors.content && <p className="text-red-500 text-sm mt-1">{errors.content}</p>}
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                Use Markdown syntax: # for headings, **text** for bold, *text* for italic, - for lists, etc.
+              </p>
             </div>
           </div>
         </div>
@@ -579,6 +609,11 @@ export default function Blog() {
               <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(selectedPost.status)}`}>
                 {selectedPost.status || "Draft"}
               </span>
+              {selectedPost.isFeatured && (
+                <span className="px-3 py-1 text-sm font-semibold rounded-full text-yellow-600 bg-yellow-100">
+                  Featured
+                </span>
+              )}
               <span className="text-sm text-gray-600 dark:text-gray-400">{selectedPost.category}</span>
               <span className="text-sm text-gray-600 dark:text-gray-400">{selectedPost.readTime}</span>
             </div>
@@ -586,17 +621,17 @@ export default function Blog() {
             <p className="text-xl text-gray-600 dark:text-gray-400 mb-6">{selectedPost.description}</p>
             <div className="flex items-center space-x-4 mb-8 text-sm text-gray-500 dark:text-gray-400">
               <span>By {selectedPost.author}</span>
-              <span>•</span>
+              <span>â�¢</span>
               <span>{selectedPost.publishDate || "Not published"}</span>
               {selectedPost.status?.toLowerCase() === "published" && (
                 <>
-                  <span>•</span>
+                  <span>â�¢</span>
                   <span>{selectedPost.views} views</span>
                 </>
               )}
             </div>
             <div className="prose prose-lg max-w-none dark:prose-invert">
-              <div className="whitespace-pre-wrap">{selectedPost.content}</div>
+              <ReactMarkdown>{selectedPost.content}</ReactMarkdown>
             </div>
           </div>
         </div>
@@ -635,7 +670,7 @@ export default function Blog() {
             />
           </div>
 
-          <div className="flex items-center justify-start m-0 p-0 space-x-4 flex-wrap  gap-4">
+          <div className="flex items-center justify-start m-0 p-0 space-x-4 flex-wrap gap-4">
             <select
               value={categoryFilter}
               onChange={(e) => {
@@ -646,31 +681,30 @@ export default function Blog() {
             >
               <option value="all">All Categories</option>
               <option value="Technology">Technology</option>
-<option value="Education">Education</option>
-<option value="Innovation">Innovation</option>
-<option value="AI">AI</option>
-<option value="Cybersecurity">Cybersecurity</option>
-<option value="Software Development">Software Development</option>
-<option value="Data Science">Data Science</option>
-<option value="Machine Learning">Machine Learning</option>
-<option value="Web Development">Web Development</option>
-<option value="Cloud Computing">Cloud Computing</option>
-<option value="Mobile Apps">Mobile Apps</option>
-<option value="Startups">Startups</option>
-<option value="Blockchain">Blockchain</option>
-<option value="Gadgets">Gadgets</option>
-<option value="Programming">Programming</option>
-<option value="Digital Marketing">Digital Marketing</option>
-<option value="UX/UI Design">UX/UI Design</option>
-<option value="Gaming">Gaming</option>
-<option value="Robotics">Robotics</option>
-<option value="Tech News">Tech News</option>
-<option value="Ethics in Tech">Ethics in Tech</option>
-<option value="AR/VR">AR/VR</option>
-<option value="Green Tech">Green Tech</option>
-<option value="Big Data">Big Data</option>
-<option value="DevOps">DevOps</option>
-
+              <option value="Education">Education</option>
+              <option value="Innovation">Innovation</option>
+              <option value="AI">AI</option>
+              <option value="Cybersecurity">Cybersecurity</option>
+              <option value="Software Development">Software Development</option>
+              <option value="Data Science">Data Science</option>
+              <option value="Machine Learning">Machine Learning</option>
+              <option value="Web Development">Web Development</option>
+              <option value="Cloud Computing">Cloud Computing</option>
+              <option value="Mobile Apps">Mobile Apps</option>
+              <option value="Startups">Startups</option>
+              <option value="Blockchain">Blockchain</option>
+              <option value="Gadgets">Gadgets</option>
+              <option value="Programming">Programming</option>
+              <option value="Digital Marketing">Digital Marketing</option>
+              <option value="UX/UI Design">UX/UI Design</option>
+              <option value="Gaming">Gaming</option>
+              <option value="Robotics">Robotics</option>
+              <option value="Tech News">Tech News</option>
+              <option value="Ethics in Tech">Ethics in Tech</option>
+              <option value="AR/VR">AR/VR</option>
+              <option value="Green Tech">Green Tech</option>
+              <option value="Big Data">Big Data</option>
+              <option value="DevOps">DevOps</option>
             </select>
 
             <select
@@ -686,7 +720,7 @@ export default function Blog() {
               <option value="published">Published</option>
             </select>
 
-            <div className="flex items-center  bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
               <button
                 onClick={() => setViewMode("grid")}
                 className={`px-3 py-1 text-sm rounded-md transition-colors ${
@@ -741,10 +775,15 @@ export default function Blog() {
                     alt={post.title}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute top-4 left-4">
+                  <div className="absolute top-4 left-4 flex space-x-2">
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(post.status)}`}>
                       {post.status || "Draft"}
                     </span>
+                    {post.isFeatured && (
+                      <span className="px-2 py-1 text-xs font-semibold rounded-full text-yellow-600 bg-yellow-100">
+                        Featured
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className={viewMode === "list" ? "p-6 md:w-2/3" : "p-6"}>
@@ -777,19 +816,19 @@ export default function Blog() {
                         <Trash2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleExportPDF(post)}
-                        className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                        onClick={() => handleFeaturePrompt(post)}
+                        className={`p-2 ${post.isFeatured ? 'text-yellow-600' : 'text-gray-600'} hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-colors`}
                       >
-                        <Download className="w-4 h-4" />
+                        <Star className="w-4 h-4" />
                       </button>
                     </div>
 
                     {(post.status?.toLowerCase() === "draft" || !post.status) && (
                       <button
                         onClick={() => handlePublish(post)}
-                        className="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                       >
-                        Publish
+                        <Send className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -871,6 +910,50 @@ export default function Blog() {
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showFeatureModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              ref={modalRef}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 max-w-sm w-full border border-gray-200 dark:border-gray-700"
+            >
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Confirm Feature
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Featuring this post will unfeature any currently featured post. Do you want to proceed?
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowFeatureModal(false)
+                    setPostToFeature(null)
+                  }}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleFeatureToggle(postToFeature)}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                >
+                  Feature
                 </button>
               </div>
             </motion.div>

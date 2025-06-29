@@ -213,7 +213,7 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid  grid-cols-2 lg:grid-cols-2 md:grid-cols-1 gap-6">
         {/* Enhanced Plan Distribution */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -251,94 +251,25 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Enhanced Calendar */}
+        {/* Revenue Trends */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-              <CalendarIcon className="w-5 h-5 mr-2" />
-              Scheduled Events
-            </h3>
-            <button
-              onClick={() => setShowAddEventModal(true)}
-              className="flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Event
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <Calendar
-                onChange={setSelectedDate}
-                value={selectedDate}
-                className="w-full border-0"
-                tileClassName={({ date }) => {
-                  const dateStr = formatDate(date)
-                  return events[dateStr] ? "bg-blue-100 dark:bg-blue-900 text-blue-600 font-semibold" : ""
-                }}
-              />
-            </div>
-
-            <div>
-              <h4 className="font-medium text-gray-900 dark:text-white mb-3">
-                Events for {selectedDate.toDateString()}:
-              </h4>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {getEventsForDate(selectedDate).map((event, index) => (
-                  <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border-l-4 border-blue-500">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">{event.title}</p>
-                        {event.time && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{event.time}</p>}
-                      </div>
-                      <span className={`px-2 py-1 text-xs rounded-full ${getEventTypeColor(event.type)}`}>
-                        {event.type}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {getEventsForDate(selectedDate).length === 0 && (
-                  <p className="text-sm text-gray-500 dark:text-gray-500 text-center py-8">
-                    No events scheduled for this date
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </motion.div>
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue & Subscription Trends</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={revenueData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={3} />
+                <Line type="monotone" dataKey="subscriptions" stroke="#3B82F6" strokeWidth={3} />
+              </LineChart>
+            </ResponsiveContainer>
+          </motion.div>
       </div>
-
-      {/* Revenue Trends */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700"
-      >
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue & Subscription Trends</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={revenueData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" />
-            <YAxis />
-            <Tooltip />
-            <Line type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={3} />
-            <Line type="monotone" dataKey="subscriptions" stroke="#3B82F6" strokeWidth={3} />
-          </LineChart>
-        </ResponsiveContainer>
-      </motion.div>
-
-      {/* Add Event Modal */}
-      <AddEventModal
-        isOpen={showAddEventModal}
-        onClose={() => setShowAddEventModal(false)}
-        selectedDate={selectedDate}
-        onSave={handleAddEvent}
-      />
     </div>
   )
 }
