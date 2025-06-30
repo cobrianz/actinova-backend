@@ -97,7 +97,6 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 })
     }
     if (result.modifiedCount === 0 && result.matchedCount > 0) {
-      console.warn(`No changes applied to course ID: ${id}, data unchanged`)
     }
 
     // Fetch the updated course to return
