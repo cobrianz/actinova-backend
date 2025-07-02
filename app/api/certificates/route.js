@@ -34,7 +34,7 @@ export async function POST(request) {
     const decoded = await verifyToken(token)
 
     const body = await request.json()
-    const { userId, courseId, userName, courseName } = body
+    const { userId, courseId, userName, courseName, skills = ["JavaScript", "Programming", "Web Development"], finalScore = 95, achievementLevel = "Beginner" } = body
 
     if (!userId || !courseId || !userName || !courseName) {
       console.error("Missing required fields:", { userId, courseId, userName, courseName })
@@ -61,76 +61,122 @@ export async function POST(request) {
 
     // Generate PDF
     const pdfDoc = await PDFDocument.create()
-    const page = pdfDoc.addPage([600, 400])
+    const page = pdfDoc.addPage([600, 800])
     const { width, height } = page.getSize()
-    const font = await pdfDoc.embedFont(StandardFonts.TimesRomanBold)
-    const smallFont = await pdfDoc.embedFont(StandardFonts.TimesRoman)
-    const fontSize = 30
-    const smallFontSize = 14
+    const titleFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold)
+    const bodyFont = await pdfDoc.embedFont(StandardFonts.TimesRoman)
+    const titleFontSize = 36
+    const subtitleFontSize = 20
+    const bodyFontSize = 14
+    const smallFontSize = 12
 
     // Certificate design
     page.drawRectangle({
-      x: 10,
-      y: 10,
-      width: width - 20,
-      height: height - 20,
+      x: 20,
+      y: 20,
+      width: width - 40,
+      height: height - 40,
       borderColor: rgb(0.2, 0.4, 0.6),
-      borderWidth: 4,
+      borderWidth: 5,
+    })
+    page.drawText("Certificate of Excellence", {
+      x: width / 2 - 100,
+      y: height - 80,
+      size: 24,
+      font: titleFont,
+      color: rgb(1, 0.84, 0),
     })
     page.drawText("Certificate of Achievement", {
       x: 50,
-      y: height - 60,
-      size: fontSize,
-      font,
-      color: rgb(0.2, 0.4, 0.6),
+      y: height - 120,
+      size: titleFontSize,
+      font: titleFont,
+      color: rgb(0, 0, 0),
     })
-    page.drawText(`Awarded to`, {
+    page.drawText("Actinova AI Tutor - Personalized Learning Platform", {
       x: 50,
-      y: height - 100,
-      size: smallFontSize,
-      font: smallFont,
+      y: height - 160,
+      size: subtitleFontSize,
+      font: bodyFont,
+      color: rgb(0.4, 0.4, 0.4),
+    })
+    page.drawText("This certifies that", {
+      x: 50,
+      y: height - 220,
+      size: bodyFontSize,
+      font: bodyFont,
       color: rgb(0, 0, 0),
     })
     page.drawText(userName, {
       x: 50,
-      y: height - 140,
-      size: fontSize,
-      font,
+      y: height - 260,
+      size: titleFontSize,
+      font: titleFont,
       color: rgb(0, 0, 0),
     })
-    page.drawText(`for successfully completing`, {
+    page.drawText("has successfully completed", {
       x: 50,
-      y: height - 180,
-      size: smallFontSize,
-      font: smallFont,
+      y: height - 300,
+      size: bodyFontSize,
+      font: bodyFont,
       color: rgb(0, 0, 0),
     })
     page.drawText(courseName, {
       x: 50,
-      y: height - 220,
-      size: fontSize,
-      font,
+      y: height - 340,
+      size: titleFontSize,
+      font: titleFont,
       color: rgb(0, 0, 0),
     })
-    page.drawText(`Issued on: ${new Date().toISOString().split("T")[0]}`, {
+    page.drawText(`Completion Date: ${new Date().toISOString().split("T")[0]}`, {
       x: 50,
-      y: height - 260,
+      y: height - 400,
       size: smallFontSize,
-      font: smallFont,
+      font: bodyFont,
       color: rgb(0, 0, 0),
     })
-    page.drawText(`Certificate ID: ${certificateId}`, {
+    page.drawText(`Achievement Level: ${achievementLevel}`, {
       x: 50,
-      y: height - 280,
+      y: height - 420,
       size: smallFontSize,
-      font: smallFont,
+      font: bodyFont,
       color: rgb(0, 0, 0),
+    })
+    page.drawText(`Final Score: ${finalScore}%`, {
+      x: 50,
+      y: height - 440,
+      size: smallFontSize,
+      font: bodyFont,
+      color: rgb(0, 0, 0),
+    })
+    page.drawText(`Skills Demonstrated: ${skills.join(", ")}`, {
+      x: 50,
+      y: height - 480,
+      size: smallFontSize,
+      font: bodyFont,
+      color: rgb(0, 0, 0),
+    })
+    page.drawText("This certificate validates the successful completion of the course requirements and demonstrates proficiency in the subject matter.", {
+      x: 50,
+      y: height - 540,
+      size: smallFontSize,
+      font: bodyFont,
+      color: rgb(0, 0, 0),
+      maxWidth: width - 100,
+      lineHeight: 16,
+    })
+    page.drawText(`Actinova AI Tutor | Certificate ID: ${certificateId}`, {
+      x: 50,
+      y: height - 600,
+      size: smallFontSize,
+      font: bodyFont,
+      color: rgb(0.4, 0.4, 0.4),
     })
     page.drawText("Instructor Signature", {
       x: width - 150,
-      y: height - 280,
+      y: height - 600,
       size: smallFontSize,
-      font: smallFont,
+      font: bodyFont,
       color: rgb(0, 0, 0),
     })
 
@@ -153,6 +199,9 @@ export async function POST(request) {
       createdAt: new Date(),
       updatedAt: new Date(),
       downloads: [],
+      skills,
+      finalScore,
+      achievementLevel,
     }
 
     const result = await db.collection("certificates").insertOne(certificate)

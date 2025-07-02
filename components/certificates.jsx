@@ -2,26 +2,35 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Download, Award, CalendarIcon, User, BookOpen, Plus, Eye, X } from "lucide-react"
+import { Download, Award, CalendarIcon, User, BookOpen, Plus, Eye, X, Trash2 } from "lucide-react"
 import Calendar from "react-calendar"
 import "react-calendar/dist/Calendar.css"
 import { toast } from "sonner"
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 
 export default function Certificates() {
   const [certificates, setCertificates] = useState([])
   const [users, setUsers] = useState([])
   const [courses, setCourses] = useState([])
+  const [analytics, setAnalytics] = useState({ statusDistribution: [], certificatesByCourse: [] })
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [showManualGenerator, setShowManualGenerator] = useState(false)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [showRevokeModal, setShowRevokeModal] = useState(false)
+  const [showUnrevokeModal, setShowUnrevokeModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [certificateToRevoke, setCertificateToRevoke] = useState(null)
+  const [certificateToUnrevoke, setCertificateToUnrevoke] = useState(null)
+  const [certificateToDelete, setCertificateToDelete] = useState(null)
   const [previewCertificate, setPreviewCertificate] = useState(null)
   const [manualForm, setManualForm] = useState({
     userId: "",
     courseId: "",
     userName: "",
     courseName: "",
+    skills: ["JavaScript", "Programming", "Web Development"],
+    finalScore: 95,
+    achievementLevel: "Beginner",
   })
   const [isLoading, setIsLoading] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -33,6 +42,7 @@ export default function Certificates() {
     fetchUsers()
     fetchCourses()
     fetchUpcomingCompletions()
+    fetchAnalytics()
   }, [])
 
   const fetchCertificates = async () => {
@@ -95,6 +105,20 @@ export default function Certificates() {
     }
   }
 
+  const fetchAnalytics = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch("/api/certificates/analytics", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(await res.json().then(data => data.error || "Failed to fetch analytics"))
+      const data = await res.json()
+      setAnalytics(data)
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
   const formatDate = (date) => {
     return date.toISOString().split("T")[0]
   }
@@ -121,6 +145,9 @@ export default function Certificates() {
         courseId: manualForm.courseId,
         userName: selectedUser.name,
         courseName: selectedCourse.title,
+        skills: manualForm.skills,
+        finalScore: manualForm.finalScore,
+        achievementLevel: manualForm.achievementLevel,
       }
 
       console.log("Generating certificate with data:", certificateData)
@@ -137,9 +164,10 @@ export default function Certificates() {
       if (!res.ok) throw new Error(await res.json().then(data => data.error || "Failed to generate certificate"))
       const newCertificate = await res.json()
       setCertificates((prev) => [newCertificate, ...prev])
-      setManualForm({ userId: "", courseId: "", userName: "", courseName: "" })
+      setManualForm({ userId: "", courseId: "", userName: "", courseName: "", skills: ["JavaScript", "Programming", "Web Development"], finalScore: 95, achievementLevel: "Beginner" })
       setShowManualGenerator(false)
       toast.success("Certificate generated successfully!")
+      fetchAnalytics() // Refresh analytics
     } catch (error) {
       console.error("Generate certificate error:", error.message)
       toast.error(error.message)
@@ -154,7 +182,11 @@ export default function Certificates() {
       const token = localStorage.getItem("token")
       const res = await fetch(`/api/certificates/${certificateToRevoke._id}`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: "revoke" }),
       })
       if (!res.ok) throw new Error(await res.json().then(data => data.error || "Failed to revoke certificate"))
       const updatedCertificate = await res.json()
@@ -162,6 +194,50 @@ export default function Certificates() {
       setShowRevokeModal(false)
       setCertificateToRevoke(null)
       toast.success("Certificate revoked")
+      fetchAnalytics() // Refresh analytics
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const handleUnrevokeCertificate = async () => {
+    if (!certificateToUnrevoke) return
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`/api/certificates/${certificateToUnrevoke._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: "unrevoke" }),
+      })
+      if (!res.ok) throw new Error(await res.json().then(data => data.error || "Failed to unrevoke certificate"))
+      const updatedCertificate = await res.json()
+      setCertificates((prev) => prev.map((cert) => (cert._id === updatedCertificate._id ? updatedCertificate : cert)))
+      setShowUnrevokeModal(false)
+      setCertificateToUnrevoke(null)
+      toast.success("Certificate unrevoked")
+      fetchAnalytics() // Refresh analytics
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const handleDeleteCertificate = async () => {
+    if (!certificateToDelete) return
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`/api/certificates/${certificateToDelete._id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(await res.json().then(data => data.error || "Failed to delete certificate"))
+      setCertificates((prev) => prev.filter((cert) => cert._id !== certificateToDelete._id))
+      setShowDeleteModal(false)
+      setCertificateToDelete(null)
+      toast.success("Certificate deleted")
+      fetchAnalytics() // Refresh analytics
     } catch (error) {
       toast.error(error.message)
     }
@@ -184,6 +260,7 @@ export default function Certificates() {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
       toast.success(`Downloaded certificate for ${certificate.userName}`)
+      fetchAnalytics() // Refresh analytics
     } catch (error) {
       toast.error(error.message)
     }
@@ -197,6 +274,8 @@ export default function Certificates() {
   const getStatusColor = (status) => {
     return status === "Issued" ? "text-green-600 bg-green-100" : "text-red-600 bg-red-100"
   }
+
+  const COLORS = ["#10B981", "#EF4444"]
 
   return (
     <div className="space-y-6 p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -225,6 +304,68 @@ export default function Certificates() {
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
                 Revoke
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unrevoke Confirmation Modal */}
+      {showUnrevokeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Confirm Unrevoke
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to unrevoke the certificate "{certificateToUnrevoke.certificateId}" for {certificateToUnrevoke.userName}?
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowUnrevokeModal(false)
+                  setCertificateToUnrevoke(null)
+                }}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnrevokeCertificate}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Unrevoke
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Confirm Deletion
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to delete the certificate "{certificateToDelete.certificateId}" for {certificateToDelete.userName}? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setCertificateToDelete(null)
+                }}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteCertificate}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
               </button>
             </div>
           </div>
@@ -316,6 +457,40 @@ export default function Certificates() {
                 {courses.map((course) => (
                   <option key={course._id} value={course._id}>{course.title}</option>
                 ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Skills (comma-separated)</label>
+              <input
+                type="text"
+                value={manualForm.skills.join(", ")}
+                onChange={(e) => setManualForm((prev) => ({ ...prev, skills: e.target.value.split(", ").map(s => s.trim()) }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., JavaScript, Programming, Web Development"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Final Score (%)</label>
+              <input
+                type="number"
+                value={manualForm.finalScore}
+                onChange={(e) => setManualForm((prev) => ({ ...prev, finalScore: parseInt(e.target.value) }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., 95"
+                min="0"
+                max="100"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Achievement Level</label>
+              <select
+                value={manualForm.achievementLevel}
+                onChange={(e) => setManualForm((prev) => ({ ...prev, achievementLevel: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Beginner">Beginner</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
               </select>
             </div>
           </div>
@@ -435,7 +610,7 @@ export default function Certificates() {
                             >
                               <Download className="w-4 h-4" />
                             </button>
-                            {certificate.status === "Issued" && (
+                            {certificate.status === "Issued" ? (
                               <button
                                 onClick={() => {
                                   setCertificateToRevoke(certificate)
@@ -445,7 +620,26 @@ export default function Certificates() {
                               >
                                 Revoke
                               </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setCertificateToUnrevoke(certificate)
+                                  setShowUnrevokeModal(true)
+                                }}
+                                className="text-green-600 hover:text-green-900 p-1 rounded"
+                              >
+                                Unrevoke
+                              </button>
                             )}
+                            <button
+                              onClick={() => {
+                                setCertificateToDelete(certificate)
+                                setShowDeleteModal(true)
+                              }}
+                              className="text-red-600 hover:text-red-900 p-1 rounded"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       </motion.tr>
@@ -548,6 +742,49 @@ export default function Certificates() {
           <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
             <div className="text-2xl font-bold text-yellow-600">0</div>
             <div className="text-sm text-gray-600 dark:text-gray-400">Failed Generations</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Certificate Analytics */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Certificate Analytics</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <h4 className="text-md font-medium text-gray-900 dark:text-white mb-2">Status Distribution</h4>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={analytics.statusDistribution}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  fill="#8884d8"
+                  label
+                >
+                  {analytics.statusDistribution.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div>
+            <h4 className="text-md font-medium text-gray-900 dark:text-white mb-2">Certificates by Course</h4>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={analytics.certificatesByCourse}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="course" angle={-45} textAnchor="end" height={60} />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="count" fill="#2563eb" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>

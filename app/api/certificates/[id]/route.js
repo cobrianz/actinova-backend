@@ -20,6 +20,14 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: "Invalid certificate ID format" }, { status: 400 })
     }
 
+    const body = await request.json()
+    const { action } = body // "revoke" or "unrevoke"
+
+    if (!["revoke", "unrevoke"].includes(action)) {
+      console.error(`Invalid action: ${action}`)
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+    }
+
     const { db } = await connectToDatabase()
     const certificateId = new ObjectId(id)
 
@@ -29,13 +37,14 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: "Certificate not found" }, { status: 404 })
     }
     if (certificate.createdBy.toString() !== decoded.userId) {
-      console.error(`Unauthorized revoke attempt by user ${decoded.userId} for certificate ${id}`)
-      return NextResponse.json({ error: "Unauthorized to revoke this certificate" }, { status: 403 })
+      console.error(`Unauthorized ${action} attempt by user ${decoded.userId} for certificate ${id}`)
+      return NextResponse.json({ error: `Unauthorized to ${action} this certificate` }, { status: 403 })
     }
 
+    const newStatus = action === "revoke" ? "Revoked" : "Issued"
     const result = await db.collection("certificates").updateOne(
       { _id: certificateId },
-      { $set: { status: "Revoked", updatedAt: new Date() } }
+      { $set: { status: newStatus, updatedAt: new Date() } }
     )
 
     if (result.matchedCount === 0) {
@@ -47,7 +56,7 @@ export async function PUT(request, { params }) {
     return NextResponse.json(updatedCertificate)
   } catch (error) {
     console.error("PUT /api/certificates/[id] error:", error.message, error.stack)
-    return NextResponse.json({ error: `Failed to revoke certificate: ${error.message}` }, { status: 500 })
+    return NextResponse.json({ error: `Failed to update certificate: ${error.message}` }, { status: 500 })
   }
 }
 
@@ -110,5 +119,56 @@ export async function GET(request, { params }) {
   } catch (error) {
     console.error("GET /api/certificates/[id] error:", error.message, error.stack)
     return NextResponse.json({ error: `Failed to download certificate: ${error.message}` }, { status: 500 })
+  }
+}
+
+export async function DELETE(request, { params }) {
+  try {
+    const token = request.headers.get("authorization")?.replace("Bearer ", "")
+    if (!token) {
+      console.error("No token provided in DELETE request")
+      return NextResponse.json({ error: "No token provided" }, { status: 401 })
+    }
+    const decoded = await verifyToken(token)
+
+    const { id } = params
+    if (!ObjectId.isValid(id)) {
+      console.error(`Invalid ObjectId: ${id}`)
+      return NextResponse.json({ error: "Invalid certificate ID format" }, { status: 400 })
+    }
+
+    const { db } = await connectToDatabase()
+    const certificateId = new ObjectId(id)
+    const certificate = await db.collection("certificates").findOne({ _id: certificateId })
+
+    if (!certificate) {
+      console.error(`Certificate not found: ${id}`)
+      return NextResponse.json({ error: "Certificate not found" }, { status: 404 })
+    }
+    if (certificate.createdBy.toString() !== decoded.userId) {
+      console.error(`Unauthorized delete attempt by user ${decoded.userId} for certificate ${id}`)
+      return NextResponse.json({ error: "Unauthorized to delete this certificate" }, { status: 403 })
+    }
+
+    // Delete the PDF file
+    const filePath = path.join(process.cwd(), "public", "certificates", `${certificate.certificateId}.pdf`)
+    try {
+      await fs.unlink(filePath)
+    } catch (error) {
+      console.warn(`Failed to delete PDF file: ${filePath}`, error.message)
+      // Continue with database deletion even if file deletion fails
+    }
+
+    // Delete from database
+    const result = await db.collection("certificates").deleteOne({ _id: certificateId })
+    if (result.deletedCount === 0) {
+      console.error(`Certificate not found during deletion: ${id}`)
+      return NextResponse.json({ error: "Certificate not found" }, { status: 404 })
+    }
+
+    return NextResponse.json({ message: "Certificate deleted successfully" })
+  } catch (error) {
+    console.error("DELETE /api/certificates/[id] error:", error.message, error.stack)
+    return NextResponse.json({ error: `Failed to delete certificate: ${error.message}` }, { status: 500 })
   }
 }
