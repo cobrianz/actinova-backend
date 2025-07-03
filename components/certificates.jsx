@@ -784,6 +784,7 @@ export default function Certificates() {
                 <Legend />
                 <Bar dataKey="count" fill="#2563eb" />
               </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
