@@ -768,7 +768,7 @@ export default function Certificates() {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-               
+                <Tooltip />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
